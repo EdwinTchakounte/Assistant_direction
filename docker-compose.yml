@@ -1,0 +1,28 @@
+# =============================================================
+# docker-compose — Assistant de Direction
+# =============================================================
+# Lancement : docker compose up --build
+# Arret     : docker compose down
+
+services:
+  api:
+    build: .
+    container_name: assistant-direction-api
+    ports:
+      # Port hote:conteneur — ajustable via API_PORT dans .env
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # Les valeurs viennent du .env local (non commite).
+      # ${VAR} = lecture depuis .env au lancement.
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/assistant.db}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Persistance SQLite : la base survit aux redemarrages.
+      - ./data:/app/data
+      # Hot reload en dev : tout changement dans src/ est vu par le conteneur.
+      - ./src:/app/src
+    # En dev : uvicorn avec --reload pour recharger sur modification.
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped

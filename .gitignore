@@ -1,0 +1,42 @@
+# === SECRETS — NE JAMAIS COMMITER ===
+.env
+.env.local
+*.key
+*.pem
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# === Environnements virtuels ===
+.venv/
+venv/
+env/
+ENV/
+
+# === Base de donnees locale ===
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+# (on commite les Dockerfile, mais pas les volumes)

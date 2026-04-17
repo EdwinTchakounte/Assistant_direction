@@ -1,0 +1,36 @@
+# Secrets — NE JAMAIS inclure dans l'image
+.env
+.env.local
+*.key
+
+# Git & outils
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.venv
+venv
+
+# Tests et docs (non necessaires a l'execution)
+tests/
+README.md
+*.md
+
+# Base de donnees locale (sera recreee dans le conteneur)
+*.db
+*.sqlite
+data/*.db
+
+# OS
+.DS_Store
+Thumbs.db
