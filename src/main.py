@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session as SQLASession
 from src.core.config import settings
 from src.db.database import get_db, init_db
 from src.db.seed import seed_events
+from src.routes import agenda_routes, agent_routes, session_routes
 
 # Logger module
 logging.basicConfig(
@@ -51,6 +52,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# --- Routers ---
+app.include_router(agenda_routes.router)
+app.include_router(agent_routes.router)
+app.include_router(session_routes.router)
 
 
 @app.get("/health", tags=["system"])
