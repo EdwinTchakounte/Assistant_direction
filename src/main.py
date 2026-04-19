@@ -169,7 +169,6 @@ _LANDING_HTML = """<!doctype html>
 
     <div class="actions">
       <a class="btn btn-primary" href="https://assistant-direction-1.onrender.com/docs">Documentation Swagger</a>
-      <a class="btn btn-ghost" href="https://assistant-direction-1.onrender.com/redoc">ReDoc</a>
       <a class="btn btn-ghost" href="https://assistant-direction-1.onrender.com/health">Health</a>
       <a class="btn btn-ghost" href="https://github.com/EdwinTchakounte/Assistant_direction">GitHub</a>
     </div>
