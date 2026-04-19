@@ -35,4 +35,5 @@ EXPOSE 8000
 
 # Commande de lancement : uvicorn sert l'app FastAPI.
 # --host 0.0.0.0 est OBLIGATOIRE en conteneur (sinon inaccessible).
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# $PORT est injecte par Render/Railway/Fly ; fallback 8000 en local.
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
