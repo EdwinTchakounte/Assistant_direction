@@ -37,6 +37,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    networks:
+      - default
 
   api:
     build: .
@@ -68,6 +70,26 @@ services:
       # Le reverse proxy (nginx/caddy) du serveur fait le proxy
       # https://api-assistant-ia.horus-lab.com -> 127.0.0.1:8421
       - "127.0.0.1:${API_PORT:-8421}:8000"
+    networks:
+      # Le service api est sur 2 reseaux :
+      #  - default            : pour parler avec db (interne au stack)
+      #  - backend_default    : reseau partage avec le reverse proxy nginx
+      #                         d'un autre projet (afrikamode) qui sert plusieurs
+      #                         sous-domaines via le meme nginx:443.
+      #                         Permet a nginx de proxy_pass vers
+      #                         http://assistant-direction-api:8000 par DNS interne.
+      - default
+      - backend_default
+
+networks:
+  default:
+    driver: bridge
+  # Reseau externe : doit deja exister avant docker compose up.
+  # Cree automatiquement par le docker-compose du projet afrikamode.
+  # Si ce reseau n'existe pas (ex: serveur de dev sans afrikamode),
+  # commenter cette section ET la ligne "backend_default" du service api.
+  backend_default:
+    external: true
 
 volumes:
   pgdata:
