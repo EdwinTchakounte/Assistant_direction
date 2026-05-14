@@ -7,3 +7,15 @@ python-dotenv==1.0.1
 groq==0.11.0
 pytest==8.3.3
 httpx==0.27.2
+
+# --- Auth ---
+# bcrypt pinned to 4.0.1 : passlib 1.7.4 a un bug d'init avec bcrypt >= 4.1
+# (detect_wrap_bug leve ValueError sur secret > 72 bytes au startup).
+passlib==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
+email-validator==2.2.0
+python-multipart==0.0.12
+
+# --- PostgreSQL (Render) ---
+psycopg2-binary==2.9.9

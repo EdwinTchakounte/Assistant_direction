@@ -13,7 +13,52 @@ Cette separation permet :
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+# =============================================================
+# AUTH — Authentification utilisateur
+# =============================================================
+
+class LoginRequest(BaseModel):
+    """Payload de POST /auth/login."""
+
+    email: EmailStr = Field(
+        ...,
+        description="Adresse email de l'utilisateur",
+        examples=["directeur@inov.com"],
+    )
+    password: str = Field(
+        ...,
+        min_length=1,
+        description="Mot de passe en clair (transmis sur HTTPS en prod)",
+        examples=["Inov2026!"],
+    )
+
+
+class UserResponse(BaseModel):
+    """Profil utilisateur expose au client (sans le mot de passe)."""
+
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str = Field(..., description="director | manager | user")
+    status: str = Field(..., description="active | inactive")
+    department: Optional[str] = None
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenResponse(BaseModel):
+    """Reponse de POST /auth/login."""
+
+    access_token: str = Field(..., description="JWT a placer dans le header Authorization: Bearer <token>")
+    token_type: str = Field(default="bearer", description="Type de token (toujours 'bearer')")
+    expires_in: int = Field(..., description="Duree de validite du token en secondes")
+    user: UserResponse = Field(..., description="Profil de l'utilisateur authentifie")
 
 
 # =============================================================

@@ -142,20 +142,22 @@ def chat(
     db: SQLASession,
     session_id: str | None,
     user_message: str,
+    *,
+    user_id: int | None = None,
 ) -> ChatResponse:
     """
     Traite un message utilisateur et retourne la reponse de l'agent.
 
     Etapes :
-      1. Resoudre / creer la session.
+      1. Resoudre / creer la session (liee au user_id).
       2. Charger l'historique pour conserver la memoire.
       3. Sauvegarder le message utilisateur.
       4. Boucler avec Groq : tool calling jusqu'a obtenir un texte final.
       5. Sauvegarder la reponse finale avec le tool_name (pour tool_used).
       6. Retourner ChatResponse(session_id, response, tool_used, turn).
     """
-    # [1] Session
-    session = session_service.get_or_create_session(db, session_id)
+    # [1] Session — liee au user_id pour cloisonner les conversations
+    session = session_service.get_or_create_session(db, session_id, user_id=user_id)
 
     # [2] Historique -> format Groq
     history = session_service.get_messages(db, session.id)

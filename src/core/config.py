@@ -5,6 +5,9 @@ Charge les variables depuis .env via pydantic-settings.
 Expose un unique objet `settings` importe partout dans le code.
 """
 from functools import lru_cache
+from typing import List
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +25,8 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.3-70b-versatile"
 
     # --- Base de donnees ---
+    # SQLite par defaut en local. En prod (Render) : URL PostgreSQL fournie
+    # automatiquement par la base managee (postgres://...).
     database_url: str = "sqlite:///./data/assistant.db"
 
     # --- API ---
@@ -30,6 +35,38 @@ class Settings(BaseSettings):
 
     # --- Logging ---
     log_level: str = "INFO"
+
+    # --- Auth / JWT ---
+    # Cle de signature JWT. En prod, generer une valeur aleatoire forte
+    # (ex: `openssl rand -hex 32`). Obligatoire.
+    jwt_secret_key: str = "change-me-in-production-please"
+    jwt_algorithm: str = "HS256"
+    # Duree de validite d'un access token en minutes (par defaut 24h).
+    jwt_expire_minutes: int = 60 * 24
+
+    # --- CORS ---
+    # Liste d'origines autorisees, separees par des virgules.
+    # "*" autorise tout (pratique pour un environnement de test).
+    cors_origins: str = "*"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS_ORIGINS en liste, gere le wildcard."""
+        raw = self.cors_origins.strip()
+        if raw == "*" or not raw:
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_postgres_url(cls, v: str) -> str:
+        """
+        Render fournit historiquement `postgres://...` mais SQLAlchemy
+        attend `postgresql://...`. On normalise pour eviter un crash au boot.
+        """
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
+        return v
 
     # Configuration pydantic-settings
     model_config = SettingsConfigDict(

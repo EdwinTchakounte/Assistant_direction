@@ -1,28 +1,74 @@
 # =============================================================
 # docker-compose — Assistant de Direction
 # =============================================================
-# Lancement : docker compose up --build
+# Stack production-ready pour deploiement sur serveur dedie :
+#   - PostgreSQL 16 (port host non-standard, bind 127.0.0.1)
+#   - API FastAPI (port host non-standard, bind 127.0.0.1)
+#
+# Les deux services sont bindes sur 127.0.0.1 : ils ne sont PAS
+# accessibles depuis l'exterieur. Un reverse proxy (nginx, caddy,
+# traefik) sur le serveur expose l'API en HTTPS sur le sous-domaine.
+#
+# Lancement : docker compose up -d --build
+# Logs      : docker compose logs -f api
 # Arret     : docker compose down
+# Reset DB  : docker compose down -v   (ATTENTION : efface les donnees)
+# =============================================================
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: assistant-direction-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-assistant_direction}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Port host non-standard, bind 127.0.0.1 uniquement.
+      # Accessible depuis le serveur (pour psql, pgadmin tunnel SSH)
+      # mais JAMAIS depuis l'exterieur.
+      - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-assistant} -d $${POSTGRES_DB:-assistant_direction}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   api:
     build: .
     container_name: assistant-direction-api
-    ports:
-      # Port hote:conteneur — ajustable via API_PORT dans .env
-      - "${API_PORT:-8000}:8000"
-    environment:
-      # Les valeurs viennent du .env local (non commite).
-      # ${VAR} = lecture depuis .env au lancement.
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/assistant.db}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    volumes:
-      # Persistance SQLite : la base survit aux redemarrages.
-      - ./data:/app/data
-      # Hot reload en dev : tout changement dans src/ est vu par le conteneur.
-      - ./src:/app/src
-    # En dev : uvicorn avec --reload pour recharger sur modification.
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # --- LLM ---
+      GROQ_API_KEY: ${GROQ_API_KEY:?GROQ_API_KEY est obligatoire dans .env}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+
+      # --- DB : construite depuis les variables Postgres ---
+      # Le host "db" correspond au nom du service ci-dessus (DNS interne).
+      # On reste sur 5432 ici (port interne au reseau Docker, non-expose).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-assistant}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-assistant_direction}
+
+      # --- Auth ---
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY est obligatoire dans .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+
+      # --- CORS / Logs ---
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      # Port host non-standard, bind 127.0.0.1 uniquement.
+      # Le reverse proxy (nginx/caddy) du serveur fait le proxy
+      # https://api-assistant-ia.horus-lab.com -> 127.0.0.1:8421
+      - "127.0.0.1:${API_PORT:-8421}:8000"
+
+volumes:
+  pgdata:
+    driver: local

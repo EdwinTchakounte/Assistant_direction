@@ -1,11 +1,13 @@
 """
 Service sessions : gestion des conversations et de leur historique.
 
-Ce service est la base de la MEMOIRE CONVERSATIONNELLE (10 pts au bareme) :
+Ce service est la base de la MEMOIRE CONVERSATIONNELLE :
   - Chaque conversation a un session_id (UUID genere par le serveur
     si absent) qui persiste entre les appels /agent/chat.
   - Tous les messages (user, assistant, tool) sont stockes pour
     pouvoir reconstruire l'historique lors du prochain appel.
+  - Chaque session est liee a un utilisateur proprietaire : un user
+    ne peut ni lire ni continuer la session d'un autre.
 
 Le service reste HTTP-agnostique : il leve des exceptions metier
 que les routes traduisent en HTTPException.
@@ -23,10 +25,18 @@ logger = logging.getLogger(__name__)
 
 # --- Exceptions metier ---------------------------------------
 class SessionNotFoundError(Exception):
-    """Leve quand une session demandee explicitement n'existe pas."""
+    """Levee quand une session demandee explicitement n'existe pas."""
 
     def __init__(self, session_id: str) -> None:
         super().__init__(f"Session id={session_id} introuvable.")
+        self.session_id = session_id
+
+
+class SessionForbiddenError(Exception):
+    """Levee quand un user tente d'acceder a une session qui ne lui appartient pas."""
+
+    def __init__(self, session_id: str) -> None:
+        super().__init__(f"Session id={session_id} non autorisee pour cet utilisateur.")
         self.session_id = session_id
 
 
@@ -34,48 +44,75 @@ class SessionNotFoundError(Exception):
 def get_or_create_session(
     db: SQLASession,
     session_id: Optional[str] = None,
+    *,
+    user_id: Optional[int] = None,
 ) -> Session:
     """
     Recupere une session existante ou en cree une nouvelle.
 
     Regles :
-      - session_id absent/vide -> genere un UUID et cree la session
-      - session_id existant    -> retourne la session
-      - session_id inconnu     -> cree une nouvelle session avec cet id
-                                  (permet au client de choisir son id)
+      - session_id absent/vide      -> genere un UUID et cree la session
+      - session_id existant + user  -> retourne la session SI elle appartient
+                                       a ce user, sinon SessionForbiddenError
+      - session_id inconnu          -> cree une nouvelle session avec cet id
+                                       (permet au client de choisir son id)
+
+    Le user_id, si fourni, est associe a toute session creee et utilise pour
+    valider l'acces a une session existante.
     """
     # Cas 1 : id absent ou vide -> on en genere un nouveau
     if not session_id or not session_id.strip():
         new_id = str(uuid.uuid4())
-        session = Session(id=new_id)
+        session = Session(id=new_id, user_id=user_id)
         db.add(session)
         db.commit()
         db.refresh(session)
-        logger.info("Nouvelle session creee (auto) : %s", new_id)
+        logger.info("Nouvelle session creee (auto) : %s (user=%s)", new_id, user_id)
         return session
 
     # Cas 2 : id fourni -> on le cherche
     session = db.query(Session).filter(Session.id == session_id).first()
     if session is not None:
+        # Verifie l'appartenance : un user ne peut pas reprendre la session d'un autre.
+        if user_id is not None and session.user_id is not None and session.user_id != user_id:
+            raise SessionForbiddenError(session_id)
+
+        # Cas legacy : session sans owner -> on l'adopte pour le user courant.
+        if user_id is not None and session.user_id is None:
+            session.user_id = user_id
+            db.commit()
+            db.refresh(session)
+
         return session
 
     # Cas 3 : id fourni mais inconnu -> on le cree
-    session = Session(id=session_id)
+    session = Session(id=session_id, user_id=user_id)
     db.add(session)
     db.commit()
     db.refresh(session)
-    logger.info("Nouvelle session creee (id client) : %s", session_id)
+    logger.info(
+        "Nouvelle session creee (id client) : %s (user=%s)", session_id, user_id
+    )
     return session
 
 
-def require_session(db: SQLASession, session_id: str) -> Session:
+def require_session(
+    db: SQLASession,
+    session_id: str,
+    *,
+    user_id: Optional[int] = None,
+) -> Session:
     """
     Retourne la session ou leve SessionNotFoundError.
-    Utilise par GET /session/{id}/history qui doit 404 si absente.
+    Si user_id est fourni, verifie egalement l'appartenance (SessionForbiddenError).
     """
     session = db.query(Session).filter(Session.id == session_id).first()
     if session is None:
         raise SessionNotFoundError(session_id)
+
+    if user_id is not None and session.user_id is not None and session.user_id != user_id:
+        raise SessionForbiddenError(session_id)
+
     return session
 
 
